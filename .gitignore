@@ -1,0 +1,22 @@
+/Documentation
+/exec/BC
+/exec/Probe
+/exec/Expanse
+/.vscode
+*.hdf5
+*.h5
+*.vtk
+*.d
+*.o
+*.table
+*.dat
+*.exe
+.DS_Store
+*.err
+*.out
+# *.sh
+*.mpg
+pout.*
+venv/
+.venv/
+__pycache__/
