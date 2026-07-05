@@ -26,6 +26,7 @@ COPY . /app
 # If your repo has real submodules, this will initialize them.
 # If .gitmodules is empty, it will do nothing.
 RUN git submodule add https://github.com/applied-numerical-algorithms-group-lbnl/proto.git || true
+RUN git submodule update --init --recursive || true
 
 WORKDIR /app/exec
 
