@@ -11,7 +11,7 @@ HDF5_INC=/opt/homebrew/opt/hdf5-mpi/include
 # HDF5_LIB=/apps/spack/anvil/apps/hdf5/1.10.7-gcc-11.2.0-axhcpbs/lib
 # HDF5_INC=/apps/spack/anvil/apps/hdf5/1.10.7-gcc-11.2.0-axhcpbs/include
 
-PROTO= ../../proto
+PROTO= ../proto
 
 CXXOPTFLAGS=-O3 
 CXXOPTFLAGS+=-DmemoryFootPrint
