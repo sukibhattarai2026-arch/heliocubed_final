@@ -36,7 +36,7 @@ VPATH=o. ../src  $(PROTO)/examples/_common
 
 
 CPPFLAGS:=-DDIM=$(DIM) -DTURB=$(TURB) -I$(PROTO)/include -I$(PROTO)/include/base -I$(PROTO)/include/amr -I$(PROTO)/include/mmb -I$(PROTO)/include/ops -I$(PROTO)/include/utils -I$(PROTO)/include/tests -I$(PROTO)/include/lapack -I. -I../src -I$(PROTO)/examples/_common
-CXXFLAGS:= $(CXXOPTFLAGS) -std=c++20 -w -Wno-c++11-narrowing
+CXXFLAGS:= $(CXXOPTFLAGS) -std=c++17 -w -Wno-c++11-narrowing
 
 LIBS += $(LAPACK_LIB)
 
