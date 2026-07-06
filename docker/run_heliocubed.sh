@@ -42,7 +42,15 @@ cd /app
 
 if [ "$MODE" = "time_dependent" ]; then
     echo "Generating time-dependent HDF5 boundary input..."
-    python3 scripts/SWiG_to_HelioCubed_h5_conversion.py
+    CR=${CR:-cr1625-medium}
+    INSTRUMENT=${INSTRUMENT:-hmi_mast_mas_std_0201}
+    BC_FILE=${BC_FILE:-/app/boundary_data/time_independent_input.h5}
+
+    python3 scripts/time_independent_input_conversion.py \
+        --input-dir /app/boundary_data/raw_predsci \
+        --cr "$CR" \
+        --instrument "$INSTRUMENT" \
+        --output "$BC_FILE"
 
 elif [ "$MODE" = "time_independent" ]; then
     echo "Generating time-independent HDF5 boundary input..."
