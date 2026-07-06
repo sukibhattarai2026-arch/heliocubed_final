@@ -9,13 +9,18 @@ RUN apt-get update && apt-get install -y \
     g++ \
     gfortran \
     git \
+    ca-certificates \
     openmpi-bin \
     libopenmpi-dev \
     libhdf5-dev \
     libhdf5-openmpi-dev \
     python3 \
     python3-pip \
+    python3-numpy \
+    python3-h5py \
+    python3-scipy \
     gettext-base \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -23,6 +28,8 @@ WORKDIR /app
 COPY . /app
 
 WORKDIR /app/exec
+
+RUN python3 -c "import h5py, numpy; print('Python dependencies OK')"
 
 RUN echo "Searching for Proto.H..." && find /app -name "Proto.H" -print
 
