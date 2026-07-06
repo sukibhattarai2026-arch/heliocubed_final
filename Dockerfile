@@ -27,7 +27,7 @@ WORKDIR /app/exec
 RUN echo "Searching for Proto.H..." && find /app -name "Proto.H" -print
 
 RUN make clean || true
-RUN make -j8
+RUN make -j1
 
 WORKDIR /app
 
