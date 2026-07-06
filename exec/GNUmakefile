@@ -7,8 +7,8 @@ DIM=3
 TURB=0
 USE_HDF5=TRUE
 
-HDF5_INC=-I/usr/include/hdf5/openmpi
-HDF5_LIB=-L/usr/lib/x86_64-linux-gnu/hdf5/openmpi -lhdf5 -lhdf5_hl
+HDF5_INC=/usr/include/hdf5/openmpi
+HDF5_LIB=/usr/lib/x86_64-linux-gnu/hdf5/openmpi
 # HDF5_LIB=/apps/spack/anvil/apps/hdf5/1.10.7-gcc-11.2.0-axhcpbs/lib
 # HDF5_INC=/apps/spack/anvil/apps/hdf5/1.10.7-gcc-11.2.0-axhcpbs/include
 
@@ -41,8 +41,8 @@ CXXFLAGS:= $(CXXOPTFLAGS) -std=c++17 -w -Wno-c++11-narrowing
 LIBS += $(LAPACK_LIB)
 
 ifdef HDF5_LIB
-LIBS+= -L$(HDF5_LIB) -lhdf5 -lz
-CPPFLAGS+= -I$(HDF5_INC)
+LIBS += -L$(HDF5_LIB) -lhdf5 -lhdf5_hl -lz
+CPPFLAGS += -I$(HDF5_INC)
 endif
 
 ifdef BLIS_INC
@@ -74,7 +74,7 @@ DEPDIR = d
 
 
 $(TARGET): $(OBJ)
-	$(LINK) -o $(TARGET) $(OBJ) $(LIBS) $(HDF5_INC)
+	$(LINK) -o $(TARGET) $(OBJ) $(LIBS)
 
 $(OBJDIR):
 	@if [ ! -d "./$(OBJDIR)" ];then     \
@@ -88,7 +88,7 @@ $(DEPDIR):
 
 #compile non-main sources
 $(OBJDIR)/%.o : %.cpp   $(OBJDIR) $(DEPDIR)
-	$(CXX) -c -o $@ $< $(CXXFLAGS) $(CPPFLAGS) $(HDF5_INC)
+	$(CXX) -c -o $@ $< $(CXXFLAGS) $(CPPFLAGS) 
 	$(DEP) $<   $(CPPFLAGS) > $(DEPDIR)/$*.d
 
 
