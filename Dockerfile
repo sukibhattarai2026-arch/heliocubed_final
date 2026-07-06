@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y \
     python3-scipy \
     gettext-base \
     pkg-config \
+    python3-requests \
+    python3-bs4 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,7 +31,7 @@ COPY . /app
 
 WORKDIR /app/exec
 
-RUN python3 -c "import h5py, numpy; print('Python dependencies OK')"
+RUN python3 -c "import h5py, numpy, scipy, requests; from bs4 import BeautifulSoup; print('Python dependencies OK')"
 
 RUN echo "Searching for Proto.H..." && find /app -name "Proto.H" -print
 
