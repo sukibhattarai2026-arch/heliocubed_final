@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y \
     g++ \
     gfortran \
     git \
-    ca-certificates \
     openmpi-bin \
     libopenmpi-dev \
     libhdf5-dev \
