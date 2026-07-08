@@ -4,7 +4,7 @@
 /exec/Expanse
 /.vscode
 *.hdf5
-*.h5
+# *.h5
 *.vtk
 *.d
 *.o
