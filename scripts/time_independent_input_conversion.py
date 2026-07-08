@@ -1,6 +1,6 @@
 """
 Create a HelioCubed/FullSphere time-independent boundary-condition HDF5 file
-from local PredSci raw files.
+from local PredSci raw HDF4/HDF5 files.
 
 Expected local layout:
 
@@ -13,7 +13,14 @@ boundary_data/raw_predsci/
             ├── rho002.hdf
             └── p002.hdf
 
-Output HDF5 pattern:
+For the observed PredSci files, each .hdf contains:
+  fakeDim0      phi coordinate, length 128
+  fakeDim1      theta coordinate, length 110/111
+  fakeDim2      radial coordinate, length 140/141
+  Data-Set-2    3D data with shape (nphi, ntheta, nr)
+
+This converter extracts one radial shell, resamples to the requested
+(theta, phi) domain, and writes the HDF5 schema expected by FullSphere:
   root attrs: domain, num_components, num_datasets, r0, time
   /data0
   /datasets_time
@@ -28,14 +35,13 @@ Component order in data0:
   3 Vp = 0
   4 p
   5 Br
-  6 Bt = 0 by default
-  7 Bp = 0 by default
+  6 Bt = 0
+  7 Bp = 0
 """
 
 from __future__ import annotations
 
 import argparse
-import io
 import logging
 from pathlib import Path
 
@@ -64,55 +70,80 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def _numeric_2d_candidate(arr: np.ndarray) -> np.ndarray | None:
-    """Return a squeezed numeric 2D array candidate, or None."""
-    arr = np.asarray(arr)
-
-    if not np.issubdtype(arr.dtype, np.number):
-        return None
-
-    arr = np.squeeze(arr)
-
-    if arr.ndim == 2:
-        return arr.astype(np.float64)
-
-    # Some files may contain a singleton or small leading dimension.
-    # If one axis is length 1 after squeeze did not remove all structure, reject.
-    if arr.ndim == 3:
-        smallest_axis = int(np.argmin(arr.shape))
-        if arr.shape[smallest_axis] <= 3:
-            arr = np.take(arr, 0, axis=smallest_axis)
-            arr = np.squeeze(arr)
-            if arr.ndim == 2:
-                return arr.astype(np.float64)
-
-    return None
-
-
-def _choose_dataset(datasets: dict[str, np.ndarray], preferred: str) -> tuple[str, np.ndarray]:
-    """Choose the best 2D numeric dataset from a file."""
-    candidates: list[tuple[str, np.ndarray]] = []
+def _choose_numeric_dataset(datasets: dict[str, np.ndarray], preferred: str) -> tuple[str, np.ndarray]:
+    """Choose the main numeric dataset. Prefer Data-Set-2, then name match, then largest."""
+    numeric: list[tuple[str, np.ndarray]] = []
 
     for name, arr in datasets.items():
-        cand = _numeric_2d_candidate(arr)
-        if cand is not None:
-            candidates.append((name, cand))
+        arr = np.asarray(arr)
+        if np.issubdtype(arr.dtype, np.number) and arr.size > 0:
+            numeric.append((name, arr))
 
-    if not candidates:
-        raise RuntimeError("No numeric 2D dataset found.")
+    if not numeric:
+        available = [f"{k}: shape={np.asarray(v).shape}, dtype={np.asarray(v).dtype}" for k, v in datasets.items()]
+        raise RuntimeError("No numeric dataset found. Available datasets:\n" + "\n".join(available))
+
+    for name, arr in numeric:
+        if name == "Data-Set-2":
+            return name, arr
 
     preferred_lower = preferred.lower()
-    for name, arr in candidates:
+    for name, arr in numeric:
         if preferred_lower in name.lower():
             return name, arr
 
-    # Otherwise use the largest 2D numeric dataset.
-    candidates.sort(key=lambda item: item[1].size, reverse=True)
-    return candidates[0]
+    # fakeDim arrays are small coordinate arrays, so largest is normally the physical data.
+    numeric.sort(key=lambda item: item[1].size, reverse=True)
+    return numeric[0]
 
 
-def read_hdf5_file(path: Path, preferred: str) -> np.ndarray:
-    """Read an HDF5 file using h5py."""
+def _extract_2d_shell(arr: np.ndarray, radial_index: int, var_name: str) -> np.ndarray:
+    """
+    Convert raw PredSci data to 2D array in (theta, phi) order.
+
+    Observed raw shape is (nphi, ntheta, nr). We select arr[:, :, radial_index]
+    and transpose to (ntheta, nphi).
+    """
+    arr = np.asarray(arr, dtype=np.float64)
+    arr = np.squeeze(arr)
+
+    if arr.ndim == 2:
+        # Most likely already (phi, theta) or (theta, phi). Return as-is; resize_2d handles transpose/resampling.
+        log.info("%s is already 2D: shape=%s", var_name, arr.shape)
+        return arr
+
+    if arr.ndim != 3:
+        raise ValueError(f"{var_name} must be 2D or 3D. Got shape {arr.shape}")
+
+    n0, n1, n2 = arr.shape
+    log.info("%s raw 3D shape=%s", var_name, arr.shape)
+
+    # PredSci helio files inspected on Arctic use (phi, theta, radial).
+    # The radial axis is the last axis, with length 140/141.
+    if radial_index < 0:
+        radial_index = n2 + radial_index
+    if radial_index < 0 or radial_index >= n2:
+        raise IndexError(
+            f"radial_index={radial_index} is invalid for {var_name} radial axis length {n2}"
+        )
+
+    shell_phi_theta = arr[:, :, radial_index]
+    log.info(
+        "Selected %s radial_index=%d from shape=%s -> shell shape=%s before transpose",
+        var_name,
+        radial_index,
+        arr.shape,
+        shell_phi_theta.shape,
+    )
+
+    # Convert from (phi, theta) to (theta, phi).
+    shell_theta_phi = shell_phi_theta.T
+    log.info("%s shell shape after transpose to (theta, phi): %s", var_name, shell_theta_phi.shape)
+    return shell_theta_phi
+
+
+def read_hdf5_file(path: Path, preferred: str, radial_index: int) -> np.ndarray:
+    """Read an HDF5 file using h5py and return one 2D radial shell."""
     datasets: dict[str, np.ndarray] = {}
 
     with h5py.File(path, "r") as f:
@@ -125,13 +156,13 @@ def read_hdf5_file(path: Path, preferred: str) -> np.ndarray:
 
         f.visititems(collect)
 
-    name, arr = _choose_dataset(datasets, preferred)
+    name, arr = _choose_numeric_dataset(datasets, preferred)
     log.info("Selected HDF5 dataset from %s: %s, shape=%s", path.name, name, arr.shape)
-    return arr
+    return _extract_2d_shell(arr, radial_index, preferred)
 
 
-def read_hdf4_file(path: Path, preferred: str) -> np.ndarray:
-    """Read an HDF4 Scientific Dataset file using pyhdf."""
+def read_hdf4_file(path: Path, preferred: str, radial_index: int) -> np.ndarray:
+    """Read an HDF4 Scientific Dataset file using pyhdf and return one 2D radial shell."""
     if SD is None or SDC is None:
         raise RuntimeError(
             "pyhdf is not installed, but PredSci .hdf files usually need HDF4 support. "
@@ -147,14 +178,14 @@ def read_hdf4_file(path: Path, preferred: str) -> np.ndarray:
             except Exception:
                 pass
 
-        name, arr = _choose_dataset(datasets, preferred)
+        name, arr = _choose_numeric_dataset(datasets, preferred)
         log.info("Selected HDF4 dataset from %s: %s, shape=%s", path.name, name, arr.shape)
-        return arr
+        return _extract_2d_shell(arr, radial_index, preferred)
     finally:
         hdf.end()
 
 
-def read_local_hdf(path: Path, preferred: str) -> np.ndarray:
+def read_local_hdf(path: Path, preferred: str, radial_index: int) -> np.ndarray:
     """Read either HDF5 or HDF4. Never store raw bytes as data."""
     path = Path(path)
     if not path.exists():
@@ -163,43 +194,21 @@ def read_local_hdf(path: Path, preferred: str) -> np.ndarray:
     log.info("Reading local file: %s", path)
 
     try:
-        return read_hdf5_file(path, preferred)
+        return read_hdf5_file(path, preferred, radial_index)
     except Exception as h5_exc:
         log.info("h5py could not read %s as HDF5: %s", path.name, h5_exc)
 
     try:
-        return read_hdf4_file(path, preferred)
+        return read_hdf4_file(path, preferred, radial_index)
     except Exception as h4_exc:
         raise RuntimeError(
             f"Could not read {path} as HDF5 or HDF4. HDF4 error: {h4_exc}"
         ) from h4_exc
 
 
-def resize_2d(arr: np.ndarray, target_shape: tuple[int, int], name: str) -> np.ndarray:
-    """Return arr as shape (ntheta, nphi), transposing/resampling if needed."""
-    arr = np.asarray(arr, dtype=np.float64)
-    arr = np.squeeze(arr)
-
-    if arr.ndim != 2:
-        raise ValueError(f"{name} must be 2D after squeeze. Got shape {arr.shape}")
-
-    ntheta, nphi = target_shape
-
-    if arr.shape == (ntheta, nphi):
-        out = arr
-    elif arr.shape == (nphi, ntheta):
-        log.info("Transposing %s from %s to %s", name, arr.shape, target_shape)
-        out = arr.T
-    else:
-        log.warning("Resampling %s from %s to %s", name, arr.shape, target_shape)
-        out = resample_2d(arr, target_shape)
-
-    out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
-    return out.astype(np.float64, copy=False)
-
-
 def resample_2d(arr: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
-    """Simple bilinear-like interpolation using numpy only."""
+    """Simple bilinear-style interpolation using numpy only."""
+    arr = np.asarray(arr, dtype=np.float64)
     old_y = np.linspace(0.0, 1.0, arr.shape[0])
     old_x = np.linspace(0.0, 1.0, arr.shape[1])
     new_y = np.linspace(0.0, 1.0, target_shape[0])
@@ -214,6 +223,29 @@ def resample_2d(arr: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
         out[i, :] = np.interp(new_x, old_x, tmp[i, :])
 
     return out
+
+
+def resize_2d(arr: np.ndarray, target_shape: tuple[int, int], name: str) -> np.ndarray:
+    """Return arr as shape (ntheta, nphi), transposing/resampling if needed."""
+    arr = np.asarray(arr, dtype=np.float64)
+    arr = np.squeeze(arr)
+
+    if arr.ndim != 2:
+        raise ValueError(f"{name} must be 2D after shell extraction. Got shape {arr.shape}")
+
+    ntheta, nphi = target_shape
+
+    if arr.shape == (ntheta, nphi):
+        out = arr
+    elif arr.shape == (nphi, ntheta):
+        log.info("Transposing %s from %s to %s", name, arr.shape, target_shape)
+        out = arr.T
+    else:
+        log.warning("Resampling %s from %s to %s", name, arr.shape, target_shape)
+        out = resample_2d(arr, target_shape)
+
+    out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+    return out.astype(np.float64, copy=False)
 
 
 def maybe_convert_vr_to_cms(vr: np.ndarray) -> np.ndarray:
@@ -308,6 +340,7 @@ def convert_local_files(
     *,
     nphi: int,
     ntheta: int,
+    radial_index: int,
     r0: float,
     time: float,
     vr_to_cms: bool,
@@ -327,13 +360,31 @@ def convert_local_files(
 
     target_shape = (ntheta, nphi)
 
-    vr = resize_2d(read_local_hdf(helio_dir / TARGET_FILES["vr"], "vr"), target_shape, "vr")
-    br = resize_2d(read_local_hdf(helio_dir / TARGET_FILES["br"], "br"), target_shape, "br")
-    rho = resize_2d(read_local_hdf(helio_dir / TARGET_FILES["rho"], "rho"), target_shape, "rho")
-    p = resize_2d(read_local_hdf(helio_dir / TARGET_FILES["p"], "p"), target_shape, "p")
+    vr = resize_2d(
+        read_local_hdf(helio_dir / TARGET_FILES["vr"], "vr", radial_index),
+        target_shape,
+        "vr",
+    )
+    br = resize_2d(
+        read_local_hdf(helio_dir / TARGET_FILES["br"], "br", radial_index),
+        target_shape,
+        "br",
+    )
+    rho = resize_2d(
+        read_local_hdf(helio_dir / TARGET_FILES["rho"], "rho", radial_index),
+        target_shape,
+        "rho",
+    )
+    p = resize_2d(
+        read_local_hdf(helio_dir / TARGET_FILES["p"], "p", radial_index),
+        target_shape,
+        "p",
+    )
 
     if vr_to_cms:
         vr = maybe_convert_vr_to_cms(vr)
+
+    log.info("Final component shapes: rho=%s, vr=%s, p=%s, br=%s", rho.shape, vr.shape, p.shape, br.shape)
 
     return write_heliocubed_h5(
         output_path=output_path,
@@ -358,6 +409,12 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--nphi", type=int, default=128)
     p.add_argument("--ntheta", type=int, default=128)
+    p.add_argument(
+        "--radial-index",
+        type=int,
+        default=0,
+        help="Radial shell index to extract from Data-Set-2. Default 0 = innermost shell.",
+    )
     p.add_argument("--r0", type=float, default=0.1)
     p.add_argument("--time", type=float, default=2024.2062841530055)
 
@@ -380,6 +437,7 @@ if __name__ == "__main__":
         output_path=Path(args.output),
         nphi=args.nphi,
         ntheta=args.ntheta,
+        radial_index=args.radial_index,
         r0=args.r0,
         time=args.time,
         vr_to_cms=not args.no_vr_to_cms,
