@@ -14,7 +14,7 @@
 .DS_Store
 *.err
 *.out
-# *.sh
+*.sh
 *.mpg
 pout.*
 venv/

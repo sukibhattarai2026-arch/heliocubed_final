@@ -30,6 +30,7 @@ WORKDIR /app
 COPY . /app
 
 WORKDIR /app/exec
+COPY test_data/ /app/test_data/
 
 RUN python3 -c "import h5py, numpy, scipy, requests; from bs4 import BeautifulSoup; print('Python dependencies OK')"
 
