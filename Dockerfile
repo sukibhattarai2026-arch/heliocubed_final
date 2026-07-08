@@ -23,16 +23,25 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     python3-requests \
     python3-bs4 \
+    python3-dev \
+    libhdf4-dev \
+    libjpeg-dev \
+    zlib1g-dev
     && rm -rf /var/lib/apt/lists/*
+
+
+RUN python3 -m pip install --no-cache-dir --break-system-packages pyhdf || \
+    python3 -m pip install --no-cache-dir pyhdf
 
 WORKDIR /app
 
 COPY . /app
 
 WORKDIR /app/exec
-COPY test_data/ /app/test_data/
+
 
 RUN python3 -c "import h5py, numpy, scipy, requests; from bs4 import BeautifulSoup; print('Python dependencies OK')"
+RUN python3 -c "from pyhdf.SD import SD, SDC; print('pyhdf OK')"
 
 RUN echo "Searching for Proto.H..." && find /app -name "Proto.H" -print
 
