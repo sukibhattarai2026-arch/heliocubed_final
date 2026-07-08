@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     libhdf4-dev \
     libjpeg-dev \
-    zlib1g-dev
+    zlib1g-dev  \
     && rm -rf /var/lib/apt/lists/*
 
 
