@@ -83,7 +83,7 @@ for CR_DIR in "${CR_DIRS[@]}"; do
         find "$CR_DIR" \
             -maxdepth 1 \
             -type f \
-            \( -iname "*.h4" -o -iname "*.hdf4" \) \
+            \( -iname "*.h5" -o -iname "*.hdf5" \) \
             | sort
     )
 
