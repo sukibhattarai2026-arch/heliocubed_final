@@ -24,7 +24,13 @@ CR_DIR="$BOUNDARY_ROOT/$CR_NAME"
 
 mapfile -t BC_FILES < <(
   find "$CR_DIR" -maxdepth 1 -type f \
-    \( -iname "*.h4" -o -iname "*.hdf4" -o -iname "*.hdf" \) | sort
+  \( \
+    -iname "*.h5" -o \
+    -iname "*.hdf5" -o \
+    -iname "*.h4" -o \
+    -iname "*.hdf4" -o \
+    -iname "*.hdf" \
+  \) | sort
 )
 
 if [ "${#BC_FILES[@]}" -ne 1 ]; then
