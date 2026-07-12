@@ -37,6 +37,7 @@ WORKDIR /app
 
 COPY . /app
 COPY docker/run_one_cr.sh /app/run_one_cr.sh
+COPY exec/trajEarth.dat /app/exec/trajEarth.dat
 RUN chmod +x /app/run_one_cr.sh
 
 WORKDIR /app/exec

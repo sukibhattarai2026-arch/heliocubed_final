@@ -39,6 +39,7 @@ if [ "${#BC_FILES[@]}" -ne 1 ]; then
   exit 1
 fi
 
+
 BC_FILE="${BC_FILES[0]}"
 OUTPUT_DIR="$OUTPUT_ROOT/$CR_NAME"
 RUN_DIR="$OUTPUT_DIR/run"
@@ -50,6 +51,18 @@ export BC_FILE OUTPUT_DIR
 export DOMAIN_SIZEX DOMAIN_SIZEY DOMAIN_SIZEZ BOXSIZE
 export MAX_STEP RESTART_STEP OUTPUT_INTERVAL
 export CHECKPOINT_INTERVAL MAX_CHECKPOINT_FILES
+
+PROBE_TRAJECTORY_FILE=${PROBE_TRAJECTORY_FILE:-/app/exec/trajEarth.dat}
+PROBE_DATA_FILE=${PROBE_DATA_FILE:-$RUN_DIR/probed_data.dat}
+
+if [ ! -f "$PROBE_TRAJECTORY_FILE" ]; then
+    echo "ERROR: Probe trajectory file not found:"
+    echo "  $PROBE_TRAJECTORY_FILE"
+    exit 1
+fi
+
+export PROBE_TRAJECTORY_FILE
+export PROBE_DATA_FILE
 
 envsubst < "$TEMPLATE_FILE" > "$INPUT_FILE"
 
