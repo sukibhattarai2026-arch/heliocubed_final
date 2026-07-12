@@ -52,14 +52,15 @@ export MAX_STEP RESTART_STEP OUTPUT_INTERVAL
 export CHECKPOINT_INTERVAL MAX_CHECKPOINT_FILES
 
 envsubst < "$TEMPLATE_FILE" > "$INPUT_FILE"
-cp "$EXECUTABLE" "$RUN_DIR/FullSphere.exe"
+
 
 cd "$RUN_DIR"
 
 echo "Running $CR_NAME with $NPROC MPI processes"
+echo "Executable: $EXECUTABLE"
+echo "Inputs: $INPUT_FILE"
 
-if [ -n "${SLURM_JOB_ID:-}" ]; then
-  srun --ntasks="$NPROC" ./FullSphere.exe inputs
-else
-  mpirun --allow-run-as-root --oversubscribe -n "$NPROC" ./FullSphere.exe inputs
-fi
+mpirun \
+    --allow-run-as-root \
+    -n "$NPROC" \
+    "$EXECUTABLE" inputs
