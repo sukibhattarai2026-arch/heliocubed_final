@@ -13,16 +13,16 @@
 -domainSizez                     ${DOMAIN_SIZEZ}
 
 # Maximum steps
--maxStep                         ${MAX_STEP}$
+-maxStep                         ${MAX_STEP}
 
 # If restart is needed, set restartStep to the step number. Checkpoint file needed
--restartStep                     ${RESTART_STEP}$
+-restartStep                     ${RESTART_STEP}
 
 # Output interval of hdf5 files
--outputInterval                  ${OUTPUT_INTERVAL}$
+-outputInterval                  ${OUTPUT_INTERVAL}
 
 # Checkpoint interval
--CheckpointInterval              ${CHECKPOINT_INTERVAL}$
+-CheckpointInterval              ${CHECKPOINT_INTERVAL}
 
 # Maximum number of checkpoint files to keep
 -MaxCheckpointFiles              3
@@ -65,7 +65,7 @@
 
 # BC start time
 -BC_start_time                   2024.206170309654
-<!-- -BC_start_time                   2022.000 -->
+
 
 # BC cadence in days
 -BC_cadence                      6.0
@@ -86,7 +86,7 @@
 -Checkpoint_file_Prefix          Checkpoint_
 
 # Probe trajectory file
--Probe_trajectory_file           /home/sbhattarai9/work/MHDmodel/HelioCubed/exec/trajEarth.dat
+-Probe_trajectory_file           /app/exec/trajEarth.dat
 
 # Probe output file
 -Probe_data_file                 probed_data.dat 
