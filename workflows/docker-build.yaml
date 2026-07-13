@@ -1,4 +1,5 @@
-name: Build HelioCubed Docker Image
+```yaml
+name: Build HelioCubed GPU Docker Image
 
 on:
   workflow_dispatch:
@@ -35,12 +36,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push GPU Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile.gpu
           platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/sukibhattarai2026-arch/heliocubed_docker:latest
-            ghcr.io/sukibhattarai2026-arch/heliocubed_docker:${{ github.sha }}
+            ghcr.io/sukibhattarai2026-arch/heliocubed_docker:gpu-test
+            ghcr.io/sukibhattarai2026-arch/heliocubed_docker:gpu-${{ github.sha }}
+```
