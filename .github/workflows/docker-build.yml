@@ -42,4 +42,5 @@ jobs:
           push: true
           tags: |
             ghcr.io/sukibhattarai2026-arch/heliocubed_docker:latest
+            ghcr.io/sukibhattarai2026-arch/heliocubed_docker:cpu-working
             ghcr.io/sukibhattarai2026-arch/heliocubed_docker:${{ github.sha }}
