@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - cpu-working
 
 permissions:
   contents: read
