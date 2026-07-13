@@ -1,0 +1,212 @@
+# GPU build for HelioCubed / FullSphere.exe
+#
+# Usage:
+#   make -f GNUmakefile.gpu clean
+#   make -f GNUmakefile.gpu -j4
+#
+# Optional overrides:
+#   make -f GNUmakefile.gpu CUDA_ARCH=80 -j4
+#   make -f GNUmakefile.gpu PROTO=../../proto CUDA_ARCH=80 -j4
+#   make -f GNUmakefile.gpu HDF5_INC=/path/include HDF5_LIB=/path/lib -j4
+
+VARS_OLD := $(.VARIABLES)
+
+# -------------------------------------------------------------------
+# Compilers
+# -------------------------------------------------------------------
+NVCC       ?= nvcc
+MPICXX     ?= mpicxx
+CXX         = $(NVCC)
+DEPXX       = $(NVCC)
+LINK        = $(NVCC)
+
+# NVIDIA compute capability without the "sm_" prefix.
+# Examples:
+#   V100  -> 70
+#   A100  -> 80
+#   RTX 30xx / A10 -> 86
+#   H100  -> 90
+CUDA_ARCH  ?= 70
+
+DIM         ?= 3
+TURB        ?= 0
+USE_HDF5    ?= TRUE
+
+# Keep this consistent with the location of Proto relative to exec/.
+PROTO       ?= ../../proto
+
+# Override these from the command line or environment when needed.
+HDF5_INC    ?= /opt/homebrew/opt/hdf5-mpi/include
+HDF5_LIB    ?= /opt/homebrew/opt/hdf5-mpi/lib
+
+TARGET      := FullSphere.exe
+
+# -------------------------------------------------------------------
+# MPI flags
+# Open MPI supports --showme:compile and --showme:link.
+# -------------------------------------------------------------------
+MPI_COMPILE_FLAGS := $(shell $(MPICXX) --showme:compile 2>/dev/null)
+MPI_LINK_FLAGS    := $(shell $(MPICXX) --showme:link 2>/dev/null)
+
+# Fallback for MPI implementations that support only "-show".
+ifeq ($(strip $(MPI_COMPILE_FLAGS)),)
+MPI_SHOW          := $(shell $(MPICXX) -show 2>/dev/null)
+MPI_COMPILE_FLAGS := $(filter -I% -D% -pthread,$(MPI_SHOW))
+MPI_LINK_FLAGS    := $(filter -L% -l% -Wl,% -pthread,$(MPI_SHOW))
+endif
+
+# -------------------------------------------------------------------
+# Source files
+# -------------------------------------------------------------------
+SRC = \
+    $(patsubst ../src/%,%,$(wildcard ../src/*.cpp)) \
+    $(wildcard *.cpp) \
+    $(wildcard $(PROTO)/examples/_common/*.cpp)
+
+NODIRSRC = $(notdir $(SRC))
+NODIROBJ = $(subst .cpp,.o,$(NODIRSRC))
+OBJ      = $(patsubst %.o,o/%.o,$(NODIROBJ))
+
+NODIRDEP = $(subst .cpp,.d,$(NODIRSRC))
+DEPENDS  = $(patsubst %.d,d/%.d,$(NODIRDEP))
+
+VPATH = . ../src $(PROTO)/examples/_common
+
+# -------------------------------------------------------------------
+# Preprocessor definitions and include paths
+# -------------------------------------------------------------------
+CPPFLAGS := \
+    -DDIM=$(DIM) \
+    -DTURB=$(TURB) \
+    -DPROTO_ACCEL \
+    -DPROTO_CUDA \
+    -DmemoryFootPrint \
+    -DPR_DISABLE_INIT_CHECKS \
+    -DPR_HDF5=TRUE \
+    -DPR_MPI=TRUE \
+    -DPR_STACK_ALLOC=4294967296 \
+    -DPR_OPS=TRUE \
+    -I$(PROTO)/include \
+    -I$(PROTO)/include/base \
+    -I$(PROTO)/include/amr \
+    -I$(PROTO)/include/mmb \
+    -I$(PROTO)/include/ops \
+    -I$(PROTO)/include/utils \
+    -I$(PROTO)/include/tests \
+    -I$(PROTO)/include/lapack \
+    -I. \
+    -I../src \
+    -I$(PROTO)/examples/_common \
+    $(MPI_COMPILE_FLAGS)
+
+ifdef HDF5_INC
+CPPFLAGS += -I$(HDF5_INC)
+endif
+
+ifdef BLIS_INC
+CPPFLAGS += -I$(BLIS_INC)
+endif
+
+ifdef FFTW3_DIR
+CPPFLAGS += -I$(FFTW3_DIR)/include
+endif
+
+# -------------------------------------------------------------------
+# CUDA/C++ compiler flags
+# All .cpp files are treated as CUDA translation units.
+# -------------------------------------------------------------------
+CXXFLAGS := \
+    -O3 \
+    -std=c++17 \
+    -arch=sm_$(CUDA_ARCH) \
+    -x cu \
+    --expt-extended-lambda \
+    --expt-relaxed-constexpr \
+    -Xcompiler=-fPIC \
+    -w
+
+# -------------------------------------------------------------------
+# Libraries
+# -------------------------------------------------------------------
+LIBS := $(MPI_LINK_FLAGS)
+
+ifdef LAPACK_LIB
+LIBS += $(LAPACK_LIB)
+endif
+
+ifdef HDF5_LIB
+LIBS += -L$(HDF5_LIB) -lhdf5 -lz
+endif
+
+ifdef FFTW3_DIR
+LIBS += -L$(FFTW3_DIR)/lib -lfftw3
+endif
+
+# Proto's CUDA path may use NVTX.
+LIBS += -lnvToolsExt
+
+# -------------------------------------------------------------------
+# Dependency generation
+# -------------------------------------------------------------------
+DEP = $(DEPXX) -M $(CXXFLAGS)
+
+OBJDIR = o
+DEPDIR = d
+
+# -------------------------------------------------------------------
+# Build rules
+# -------------------------------------------------------------------
+all: check-tools $(TARGET)
+
+check-tools:
+	@command -v $(NVCC) >/dev/null 2>&1 || \
+	    { echo "ERROR: nvcc was not found. Load a CUDA module first."; exit 1; }
+	@command -v $(MPICXX) >/dev/null 2>&1 || \
+	    { echo "ERROR: mpicxx was not found. Load an MPI module first."; exit 1; }
+	@test -d "$(PROTO)" || \
+	    { echo "ERROR: Proto directory not found: $(PROTO)"; exit 1; }
+	@test -f "$(PROTO)/include/base/Proto_gpu.H" || \
+	    { echo "ERROR: Proto CUDA header not found: $(PROTO)/include/base/Proto_gpu.H"; exit 1; }
+	@echo "NVCC       = $$(command -v $(NVCC))"
+	@echo "MPICXX     = $$(command -v $(MPICXX))"
+	@echo "CUDA_ARCH  = $(CUDA_ARCH)"
+	@echo "PROTO      = $(PROTO)"
+	@echo "HDF5_INC   = $(HDF5_INC)"
+	@echo "HDF5_LIB   = $(HDF5_LIB)"
+
+$(TARGET): $(OBJ)
+	$(LINK) -arch=sm_$(CUDA_ARCH) -o $@ $(OBJ) $(LIBS)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(DEPDIR):
+	@mkdir -p $(DEPDIR)
+
+# Compile each C++ source as CUDA so Proto device lambdas can be generated.
+$(OBJDIR)/%.o: %.cpp | $(OBJDIR) $(DEPDIR)
+	$(CXX) -c -o $@ $< $(CXXFLAGS) $(CPPFLAGS)
+	$(DEP) $< $(CPPFLAGS) > $(DEPDIR)/$*.d
+
+.PHONY: all clean dataclean realclean print vars check-tools
+
+print-%:
+	@echo "$* = $($*)"
+
+-include $(DEPENDS)
+
+vars:
+	$(foreach v,$(filter-out $(VARS_OLD) VARS_OLD,$(.VARIABLES)), \
+	    $(info $(v) = $($(v))))
+
+clean:
+	rm -rf d o *.o *.exe *.d \
+	    $(PROTO)/examples/_common/*.o \
+	    ../src/*.o \
+	    $(PROTO)/examples/_common/*.d \
+	    ../src/*.d
+
+realclean: clean dataclean
+
+dataclean:
+	rm -rf *.hdf5 *.vtk *.table pout*
