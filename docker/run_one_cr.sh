@@ -10,13 +10,17 @@ trap '
 ' ERR
 
 # --------------------------------------------------------------------------
-# General configuration
+# Required values passed by the Kubernetes Job
 # --------------------------------------------------------------------------
 
-BOUNDARY_ROOT=${BOUNDARY_ROOT:-/app/boundary_data}
-OUTPUT_ROOT=${OUTPUT_ROOT:-/app/outputs}
-
 CR_NAME=${CR_NAME:?ERROR: CR_NAME is required}
+BC_FILE=${BC_FILE:?ERROR: BC_FILE is required}
+OUTPUT_DIR=${OUTPUT_DIR:?ERROR: OUTPUT_DIR is required}
+
+# --------------------------------------------------------------------------
+# Simulation configuration
+# --------------------------------------------------------------------------
+
 NPROC=${NPROC:-4}
 
 DOMAIN_SIZEX=${DOMAIN_SIZEX:-60}
@@ -36,112 +40,48 @@ EXECUTABLE=${EXECUTABLE:-/app/exec/FullSphere.exe}
 PROBE_TRAJECTORY_FILE=${PROBE_TRAJECTORY_FILE:-/app/exec/trajEarth.dat}
 
 # --------------------------------------------------------------------------
-# Select boundary-condition file
-#
-# Preferred:
-#   Kubernetes passes BC_FILE directly.
-#
-# Fallback:
-#   Search BOUNDARY_ROOT/CR_NAME and require exactly one HDF file.
-# --------------------------------------------------------------------------
-
-if [[ -n "${BC_FILE:-}" ]]; then
-
-    echo "Using explicitly provided boundary file:"
-    echo "  BC_FILE=${BC_FILE}"
-
-    if [[ ! -f "${BC_FILE}" ]]; then
-        echo "ERROR: Provided boundary file does not exist:"
-        echo "  ${BC_FILE}"
-        exit 1
-    fi
-
-else
-
-    CR_DIR="${BOUNDARY_ROOT}/${CR_NAME}"
-
-    echo "No explicit BC_FILE was provided."
-    echo "Searching directory:"
-    echo "  ${CR_DIR}"
-
-    if [[ ! -d "${CR_DIR}" ]]; then
-        echo "ERROR: Boundary directory does not exist:"
-        echo "  ${CR_DIR}"
-        exit 1
-    fi
-
-    mapfile -t BC_FILES < <(
-        find "${CR_DIR}" \
-            -maxdepth 1 \
-            -type f \
-            \( \
-                -iname "*.h5" -o \
-                -iname "*.hdf5" -o \
-                -iname "*.h4" -o \
-                -iname "*.hdf4" -o \
-                -iname "*.hdf" \
-            \) |
-        sort
-    )
-
-    if [[ "${#BC_FILES[@]}" -ne 1 ]]; then
-        echo "ERROR: Expected exactly one boundary file in:"
-        echo "  ${CR_DIR}"
-        echo "Found: ${#BC_FILES[@]}"
-
-        printf '  %s\n' "${BC_FILES[@]:-}"
-
-        exit 1
-    fi
-
-    BC_FILE="${BC_FILES[0]}"
-fi
-
-export BC_FILE
-
-# --------------------------------------------------------------------------
-# Output locations
-#
-# Kubernetes may provide OUTPUT_DIR directly.
-# Otherwise, use OUTPUT_ROOT/CR_NAME.
-# --------------------------------------------------------------------------
-
-OUTPUT_DIR=${OUTPUT_DIR:-"${OUTPUT_ROOT}/${CR_NAME}"}
-RUN_DIR="${OUTPUT_DIR}/run"
-
-# This is the rendered text input passed to FullSphere.exe.
-INPUT_CONFIG="${RUN_DIR}/inputs"
-
-mkdir -p "${RUN_DIR}"
-
-PROBE_DATA_FILE=${PROBE_DATA_FILE:-"${RUN_DIR}/probed_data.dat"}
-
-# --------------------------------------------------------------------------
 # Validate required files
 # --------------------------------------------------------------------------
 
+if [[ ! -f "${BC_FILE}" ]]; then
+    echo "ERROR: Boundary-condition file does not exist:"
+    echo "  ${BC_FILE}"
+    exit 1
+fi
+
 if [[ ! -f "${TEMPLATE_FILE}" ]]; then
-    echo "ERROR: Input template not found:"
+    echo "ERROR: Input template does not exist:"
     echo "  ${TEMPLATE_FILE}"
     exit 1
 fi
 
 if [[ ! -f "${EXECUTABLE}" ]]; then
-    echo "ERROR: HelioCubed executable not found:"
+    echo "ERROR: HelioCubed executable does not exist:"
     echo "  ${EXECUTABLE}"
     exit 1
 fi
 
 if [[ ! -f "${PROBE_TRAJECTORY_FILE}" ]]; then
-    echo "ERROR: Probe trajectory file not found:"
+    echo "ERROR: Probe trajectory file does not exist:"
     echo "  ${PROBE_TRAJECTORY_FILE}"
     exit 1
 fi
 
 # --------------------------------------------------------------------------
-# Export values used by inputs.template
+# Output paths
 # --------------------------------------------------------------------------
 
+RUN_DIR="${OUTPUT_DIR}/run"
+INPUT_CONFIG="${RUN_DIR}/inputs"
+PROBE_DATA_FILE=${PROBE_DATA_FILE:-"${RUN_DIR}/probed_data.dat"}
+
+mkdir -p "${RUN_DIR}"
+
+# --------------------------------------------------------------------------
+# Export values used inside inputs.template
+# --------------------------------------------------------------------------
+
+export BC_FILE
 export OUTPUT_DIR
 
 export DOMAIN_SIZEX
@@ -159,50 +99,52 @@ export PROBE_TRAJECTORY_FILE
 export PROBE_DATA_FILE
 
 # --------------------------------------------------------------------------
-# Create FullSphere input configuration
+# Generate the HelioCubed input configuration
 # --------------------------------------------------------------------------
 
 envsubst < "${TEMPLATE_FILE}" > "${INPUT_CONFIG}"
 
 echo
 echo "======================================================"
-echo "HelioCubed case"
+echo "HelioCubed simulation"
 echo "======================================================"
-echo "CR/case name: ${CR_NAME}"
+echo "Case name: ${CR_NAME}"
 echo "Boundary file: ${BC_FILE}"
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Run directory: ${RUN_DIR}"
-echo "Input configuration: ${INPUT_CONFIG}"
+echo "Generated input: ${INPUT_CONFIG}"
 echo "MPI processes: ${NPROC}"
 echo "Restart step: ${RESTART_STEP}"
 echo "======================================================"
 
 echo
-echo "Boundary file information:"
+echo "Boundary file:"
 ls -lh "${BC_FILE}"
 
 echo
-echo "Restart setting in generated input:"
+echo "Boundary reference in generated input:"
+grep -n -- "${BC_FILE}" "${INPUT_CONFIG}" || true
+
+echo
+echo "Restart configuration:"
 grep -n -- "-restartStep" "${INPUT_CONFIG}" || true
 
 # --------------------------------------------------------------------------
-# Restart validation
+# Validate restart configuration
 # --------------------------------------------------------------------------
 
 if [[ "${RESTART_STEP}" -gt 0 ]]; then
-
     CHECKPOINT_FILE="${RUN_DIR}/Checkpoint_${RESTART_STEP}.hdf5"
 
     if [[ ! -f "${CHECKPOINT_FILE}" ]]; then
         echo "ERROR: Restart step ${RESTART_STEP} was requested,"
-        echo "but the checkpoint file does not exist:"
+        echo "but this checkpoint does not exist:"
         echo "  ${CHECKPOINT_FILE}"
         exit 1
     fi
 
     echo "Restarting from:"
     echo "  ${CHECKPOINT_FILE}"
-
 else
     echo "Starting a new simulation."
 fi
