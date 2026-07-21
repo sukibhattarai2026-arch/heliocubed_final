@@ -50,7 +50,7 @@ R_IN=${R_IN:-0.1}
 R_OUT=${R_OUT:-1.2}
 C_RAD=${C_RAD:-1.0}
 
-BC_START_TIME=${BC_START_TIME:-2024.206170309654}
+BC_START_TIME=${BC_START_TIME:-}
 BC_CADENCE=${BC_CADENCE:-6.0}
 BC_FRAME_ROTATE=${BC_FRAME_ROTATE:-0}
 PROBE_CADENCE=${PROBE_CADENCE:-3600}
@@ -87,6 +87,46 @@ if [[ ! -f "${PROBE_TRAJECTORY_FILE}" ]]; then
     echo "  ${PROBE_TRAJECTORY_FILE}"
     exit 1
 fi
+# --------------------------------------------------------------------------
+# Boundary-condition start time
+# --------------------------------------------------------------------------
+
+# Use BC_START_TIME from Kubernetes when explicitly supplied.
+# Otherwise, read the root "time" attribute from the boundary HDF5 file.
+if [[ -z "${BC_START_TIME:-}" ]]; then
+    echo "BC_START_TIME was not supplied."
+    echo "Reading time from boundary file:"
+    echo "  ${BC_FILE}"
+
+    BC_START_TIME=$(
+        python3 - "${BC_FILE}" <<'PY'
+import sys
+import h5py
+
+path = sys.argv[1]
+
+with h5py.File(path, "r") as h5:
+    if "time" not in h5.attrs:
+        raise SystemExit(
+            f"ERROR: Boundary file has no root 'time' attribute: {path}"
+        )
+
+    print(repr(float(h5.attrs["time"])))
+PY
+    )
+
+    BC_START_TIME_SOURCE="boundary HDF5 file"
+else
+    BC_START_TIME_SOURCE="Kubernetes/environment override"
+fi
+
+if [[ -z "${BC_START_TIME}" ]]; then
+    echo "ERROR: BC_START_TIME could not be determined."
+    exit 1
+fi
+
+echo "BC start time: ${BC_START_TIME}"
+echo "BC start-time source: ${BC_START_TIME_SOURCE}"
 
 # --------------------------------------------------------------------------
 # Output paths
@@ -123,6 +163,9 @@ export PROBE_TRAJECTORY_FILE PROBE_DATA_FILE
 # --------------------------------------------------------------------------
 
 envsubst < "${TEMPLATE_FILE}" > "${INPUT_CONFIG}"
+
+echo "Generated boundary start time:"
+grep -n -i -- "BC_start_time" "${INPUT_CONFIG}"
 
 echo
 echo "======================================================"
@@ -163,46 +206,6 @@ grep -n -- "${BC_FILE}" "${INPUT_CONFIG}" || true
 echo
 echo "Restart configuration:"
 grep -n -- "-restartStep" "${INPUT_CONFIG}" || true
-
-# --------------------------------------------------------------------------
-# Boundary-condition start time
-# --------------------------------------------------------------------------
-
-# Use BC_START_TIME from Kubernetes when explicitly supplied.
-# Otherwise, read the root "time" attribute from the boundary HDF5 file.
-if [[ -z "${BC_START_TIME:-}" ]]; then
-    BC_START_TIME=$(
-        python3 - "${BC_FILE}" <<'PY'
-import sys
-import h5py
-
-path = sys.argv[1]
-
-with h5py.File(path, "r") as f:
-    if "time" not in f.attrs:
-        raise SystemExit(
-            f"ERROR: Boundary file has no root 'time' attribute: {path}"
-        )
-
-    value = f.attrs["time"]
-
-    # Handle scalar NumPy/HDF5 values.
-    if hasattr(value, "item"):
-        value = value.item()
-
-    print(value)
-PY
-    )
-fi
-
-if [[ -z "${BC_START_TIME}" ]]; then
-    echo "ERROR: BC_START_TIME could not be determined."
-    exit 1
-fi
-
-export BC_START_TIME
-
-echo "BC start time: ${BC_START_TIME}"
 
 # --------------------------------------------------------------------------
 # Validate restart configuration
