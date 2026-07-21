@@ -1,11 +1,11 @@
 # Total simulation time in seconds
--tstop                           20000000
+-tstop                           ${TSTOP}
 
 # CFL Constant
--CFL                             0.6
+-CFL                             ${CFL}
 
 # Polytropic index
--gamma                           1.5
+-gamma                           ${GAMMA}
 
 # Cells in r, theta, phi directions
 -domainSizex                     ${DOMAIN_SIZEX}
@@ -13,83 +13,80 @@
 -domainSizez                     ${DOMAIN_SIZEZ}
 
 # Maximum steps
--maxStep                         ${MAX_STEP}$
+-maxStep                         ${MAX_STEP}
 
 # If restart is needed, set restartStep to the step number. Checkpoint file needed
--restartStep                     ${RESTART_STEP}$
+-restartStep                     ${RESTART_STEP}
 
 # Output interval of hdf5 files
--outputInterval                  ${OUTPUT_INTERVAL}$
+-outputInterval                  ${OUTPUT_INTERVAL}
 
 # Checkpoint interval
--CheckpointInterval              ${CHECKPOINT_INTERVAL}$
+-CheckpointInterval              ${CHECKPOINT_INTERVAL}
 
 # Maximum number of checkpoint files to keep
--MaxCheckpointFiles              3
+-MaxCheckpointFiles              ${MAX_CHECKPOINT_FILES}
 
 # Box size used in domain decomposition
 -BoxSize                         ${BOXSIZE}
 
 # Is inner BC set using hdf5 file?
--sph_inner_BC_hdf5               1
+-sph_inner_BC_hdf5               ${SPH_INNER_BC_HDF5}
 
-# Is limited applied?
--limiter_apply                   1
+# Is limiter applied?
+-limiter_apply                   ${LIMITER_APPLY}
 
 # Is divergence cleaning applied using Powell's method?
--takedivBstep                    1
+-takedivBstep                    ${TAKEDIVBSTEP}
 
 # Temporal order of accuracy
--timeIntegratorType              1
+-timeIntegratorType              ${TIME_INTEGRATOR_TYPE}
 
 # Riemann solver type
--Riemann_solver_type             2
+-Riemann_solver_type             ${RIEMANN_SOLVER_TYPE}
 
 # Entropy fix coefficient in Roe solver
--entropy_fix_coeff               0.3
+-entropy_fix_coeff               ${ENTROPY_FIX_COEFF}
 
-# Are initail conditions set in spherical coordinates?
--initialize_in_spherical_coords  1
+# Are initial conditions set in spherical coordinates?
+-initialize_in_spherical_coords  ${INITIALIZE_IN_SPHERICAL_COORDS}
 
 # Output in spherical coordinates?
--output_in_spherical_coords      1    
+-output_in_spherical_coords      ${OUTPUT_IN_SPHERICAL_COORDS}
 
 # Inner radius in AU
--r_in                            0.1   
+-r_in                            ${R_IN}
 
 # Outer radius in AU
--r_out                           1.2
+-r_out                           ${R_OUT}
 
-# Strething parameter for dr
--C_rad                           1.0
+# Stretching parameter for dr
+-C_rad                           ${C_RAD}
 
 # BC start time
--BC_start_time                   2024.206170309654
-<!-- -BC_start_time                   2022.000 -->
+-BC_start_time                   ${BC_START_TIME}
 
 # BC cadence in days
--BC_cadence                      6.0
+-BC_cadence                      ${BC_CADENCE}
 
 # Do BC frames rotate?
--BC_frame_rotate                 0
+-BC_frame_rotate                 ${BC_FRAME_ROTATE}
 
 # Probe cadence in seconds
--probe_cadence                   3600  # Seconds
+-probe_cadence                   ${PROBE_CADENCE}
 
 # BC hdf5 file
 -BC_file                         ${BC_FILE}
-
-
 
 # Prefixes for output and Checkpoint files
 -Data_file_Prefix                Data_
 -Checkpoint_file_Prefix          Checkpoint_
 
 # Probe trajectory file
--Probe_trajectory_file           /home/sbhattarai9/work/MHDmodel/HelioCubed/exec/trajEarth.dat
+-Probe_trajectory_file           ${PROBE_TRAJECTORY_FILE}
 
 # Probe output file
--Probe_data_file                 probed_data.dat 
+-Probe_data_file                 ${PROBE_DATA_FILE}
 
 # Create a checkpoint file this many seconds before CME insertion
 -CME_get_checkpoint_before       3600
@@ -114,4 +111,4 @@
 
 # Scaling factors. MHD variables can be scaled using these factors
 -density_scale                   700.0
--velocity_scale                  30000000.0    
+-velocity_scale                  30000000.0
