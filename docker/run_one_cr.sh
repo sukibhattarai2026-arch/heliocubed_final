@@ -165,6 +165,46 @@ echo "Restart configuration:"
 grep -n -- "-restartStep" "${INPUT_CONFIG}" || true
 
 # --------------------------------------------------------------------------
+# Boundary-condition start time
+# --------------------------------------------------------------------------
+
+# Use BC_START_TIME from Kubernetes when explicitly supplied.
+# Otherwise, read the root "time" attribute from the boundary HDF5 file.
+if [[ -z "${BC_START_TIME:-}" ]]; then
+    BC_START_TIME=$(
+        python3 - "${BC_FILE}" <<'PY'
+import sys
+import h5py
+
+path = sys.argv[1]
+
+with h5py.File(path, "r") as f:
+    if "time" not in f.attrs:
+        raise SystemExit(
+            f"ERROR: Boundary file has no root 'time' attribute: {path}"
+        )
+
+    value = f.attrs["time"]
+
+    # Handle scalar NumPy/HDF5 values.
+    if hasattr(value, "item"):
+        value = value.item()
+
+    print(value)
+PY
+    )
+fi
+
+if [[ -z "${BC_START_TIME}" ]]; then
+    echo "ERROR: BC_START_TIME could not be determined."
+    exit 1
+fi
+
+export BC_START_TIME
+
+echo "BC start time: ${BC_START_TIME}"
+
+# --------------------------------------------------------------------------
 # Validate restart configuration
 # --------------------------------------------------------------------------
 
